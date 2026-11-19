@@ -1,18 +1,47 @@
-version: '3.8'
-
 services:
-  gif-generator:
-    container_name: gifapi
-    build: .
+  gateway:
+    image: nginx:1.28-alpine
     ports:
-      - "8000:8000"
+      - "${DOUTU_BIND_IP:-0.0.0.0}:${DOUTU_PORT:-8000}:80"
     volumes:
-      # 将当前目录挂载进去，方便热更新代码 (修改代码无需重建镜像)
-      - ./:/app
-      # 如果你有字体文件夹，确保它存在，否则可以注释掉下面这行
-      - ./fonts:/app/fonts
-    environment:
-      - TZ=Asia/Shanghai
+      - ./docker/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      doutu:
+        condition: service_healthy
+      gif-generator:
+        condition: service_healthy
     restart: unless-stopped
-    # 开启开发模式的热重载命令
-    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+
+  doutu:
+    build: .
+    environment:
+      TZ: Asia/Shanghai
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?Set ADMIN_PASSWORD in .env}
+      DOUTU_PUBLIC_URL: ${DOUTU_PUBLIC_URL:-http://127.0.0.1:8000}
+      DOUTU_USERS_FILE: /var/lib/doutu/users.json
+      DOUTU_THIRD_PARTY_TOKEN: ${DOUTU_THIRD_PARTY_TOKEN:-}
+      DOUTU_THIRD_PARTY_TEXT_PARAM: ${DOUTU_THIRD_PARTY_TEXT_PARAM:-text}
+    volumes:
+      - doutu-data:/var/lib/doutu
+    healthcheck:
+      test: ["CMD", "php", "-r", "exit(@file_get_contents('http://127.0.0.1/index.php') === false ? 1 : 0);"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
+    restart: unless-stopped
+
+  gif-generator:
+    build: ./neon
+    environment:
+      TZ: Asia/Shanghai
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
+    restart: unless-stopped
+
+volumes:
+  doutu-data:

@@ -1,8 +1,15 @@
 # main.py
+from pathlib import Path
+from threading import BoundedSemaphore
+from typing import Literal
+
 from fastapi import FastAPI, Query, HTTPException
 from fastapi.responses import Response, FileResponse
 from fastapi.staticfiles import StaticFiles
 from gif_generator import generate_gif_bytes
+
+BASE_DIR = Path(__file__).resolve().parent
+render_slots = BoundedSemaphore(2)
 
 app = FastAPI(
     title="Text to GIF API (Word Wrap Edition)",
@@ -10,23 +17,32 @@ app = FastAPI(
 )
 
 # 挂载静态文件
-app.mount("/static", StaticFiles(directory="static"), name="static")
+app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
+app.mount("/neon/static", StaticFiles(directory=BASE_DIR / "static"), name="neon-static")
 
 @app.get("/")
 async def read_index():
-    return FileResponse('static/index.html')
+    return FileResponse(BASE_DIR / 'static/index.html')
+
+@app.get("/healthz")
+def healthz():
+    return {"status": "ok"}
 
 @app.get("/generate")
-async def get_gif(
-    text: str = Query(..., min_length=1),
-    frame_count: int = Query(20, ge=1),
-    delay: int = Query(100, ge=20),
+def get_gif(
+    text: str = Query(..., min_length=1, max_length=120),
+    frame_count: int = Query(20, ge=1, le=60),
+    delay: int = Query(100, ge=20, le=2000),
     color: str = Query(None, description="Color name, hex code, or effect: 'rainbow', 'rainbow_flow', 'wave', 'bounce', 'neon', 'breathing:color1:color2'"),
-    width_pixels: int = Query(500, ge=1, le=5000),
-    theme: str = Query("transparent", enum=["transparent", "dark", "light"]),
+    width_pixels: int = Query(500, ge=120, le=1600),
+    theme: Literal["transparent", "dark", "light"] = Query("transparent"),
     # --- 新增参数 ---
     wrap: bool = Query(False, description="Auto wrap text to new lines if it exceeds width. Disables scrolling.")
 ):
+    if not text.strip():
+        raise HTTPException(status_code=422, detail="Text cannot be blank")
+    if not render_slots.acquire(blocking=False):
+        raise HTTPException(status_code=503, detail="Generator busy; retry later")
     try:
         # 呼吸灯逻辑检查
         if color and color.startswith('breathing:') and frame_count < 20:
@@ -50,9 +66,15 @@ async def get_gif(
             raise HTTPException(status_code=400, detail="Failed.")
 
         return Response(content=gif_buffer.getvalue(), media_type="image/gif")
+    except HTTPException:
+        raise
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         print(f"Error: {e}")
         raise HTTPException(status_code=500, detail="Server Error")
+    finally:
+        render_slots.release()
 
 if __name__ == "__main__":
     import uvicorn

@@ -1,6 +1,9 @@
-__pycache__
-venv
 .git
-.idea
-*.pyc
-.DS_Store
+.env
+.env.*
+users.json
+data
+tests
+.github
+__pycache__
+.pytest_cache

@@ -1,28 +1,18 @@
-# 使用官方轻量级 Python 3.10 镜像
-FROM python:3.10-slim
-
-# 设置工作目录
-WORKDIR /app
-
-# 1. 安装系统依赖和中文字体
-# fonts-noto-cjk 是 Google 的开源中日韩字体库，解决中文乱码问题
-RUN apt-get update && apt-get install -y \
-    fonts-noto-cjk \
-    && apt-get clean \
+FROM php:8.3-apache
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libfreetype6-dev libjpeg62-turbo-dev libpng-dev libonig-dev \
+    && docker-php-ext-configure gd --with-freetype --with-jpeg \
+    && docker-php-ext-install -j"$(nproc)" gd mbstring \
+    && a2enmod headers \
     && rm -rf /var/lib/apt/lists/*
-
-# 2. 复制依赖文件并安装
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-
-# 3. 复制项目代码
-COPY . .
-
-# 4. 创建字体目录（为了方便挂载自定义字体）
-RUN mkdir -p fonts
-
-# 5. 暴露端口
-EXPOSE 8000
-
-# 6. 启动命令
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+WORKDIR /var/www/html
+COPY index.php admin.php config.php .htaccess ./
+COPY template/ ./template/
+COPY static/ ./static/
+COPY neon/fonts/jiying.ttf /usr/share/fonts/doutu.ttf
+COPY docker/php-apache.conf /etc/apache2/conf-enabled/doutu.conf
+COPY docker/php-production.ini /usr/local/etc/php/conf.d/doutu.ini
+COPY docker/php-entrypoint.sh /usr/local/bin/doutu-entrypoint
+RUN chmod +x /usr/local/bin/doutu-entrypoint && mkdir -p /var/lib/doutu
+ENTRYPOINT ["doutu-entrypoint"]
+CMD ["apache2-foreground"]

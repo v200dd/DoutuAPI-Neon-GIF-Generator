@@ -1,11 +1,15 @@
+.env
+.env.*
+!.env.example
+users.json
+data/
 __pycache__/
 *.py[cod]
-*$py.class
-.env
-.venv
-env/
-venv/
-.idea/
-.vscode/
-*.log
-text_to_slack_gif/
+.pytest_cache/
+.venv/
+.DS_Store
+*.backup.json
+# Original large fonts are retained in the downloadable deployment bundle.
+static/*.ttf
+static/*.TTF
+static/*.otf

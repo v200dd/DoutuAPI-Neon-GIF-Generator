@@ -25,7 +25,7 @@ def new_image(width, height, background_color_rgba):
 # --- 新增：随机获取字体路径 ---
 def get_random_font_from_folder():
     """从 fonts 文件夹中随机选择一个字体文件"""
-    font_dir = "fonts"
+    font_dir = os.path.join(os.path.dirname(__file__), "fonts")
     if not os.path.exists(font_dir):
         return None
     
@@ -194,6 +194,9 @@ def generate_gif_bytes(text: str, frame_count: int, delay: int, font_path: str, 
     vertical_padding = 40 if (effect_type in ['bounce', 'wave']) else 0
     canvas_height = (total_lines * BASE_LINE_HEIGHT) + (vertical_padding * 2)
     
+    if width_pixels * canvas_height * max(frame_count, 20) > 16_000_000:
+        raise ValueError("Image budget exceeded; reduce text, width, or frames")
+
     images = []
 
     # --- 绘制辅助函数 ---
@@ -342,7 +345,7 @@ def generate_gif_bytes(text: str, frame_count: int, delay: int, font_path: str, 
         text_w = get_text_width(d_temp, line, font)
         start_x = width_pixels
         total_distance = width_pixels + text_w
-        step = total_distance / (frame_count - 1)
+        step = total_distance / max(frame_count - 1, 1)
         
         # 预先生成 Rainbow Layer (如果是 Rainbow 模式)
         rainbow_layer = None
@@ -357,7 +360,7 @@ def generate_gif_bytes(text: str, frame_count: int, delay: int, font_path: str, 
         for i in range(frame_count):
             img = new_image(width_pixels, canvas_height, bg_color_rgba)
             d = ImageDraw.Draw(img)
-            curr_x = start_x - (step * i)
+            curr_x = 0 if frame_count == 1 else start_x - (step * i)
             
             if mode == 'rainbow':
                 # 滚动彩虹

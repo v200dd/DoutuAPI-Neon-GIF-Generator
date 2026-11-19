@@ -1,0 +1,4 @@
+Options -Indexes
+<FilesMatch "^(config\.php|users\.json|.*\.(ini|env|json|ya?ml|sh))$">
+    Require all denied
+</FilesMatch>

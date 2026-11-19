@@ -1,0 +1,6 @@
+__pycache__
+venv
+.git
+.idea
+*.pyc
+.DS_Store
